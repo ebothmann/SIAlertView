@@ -44,6 +44,9 @@ typedef void(^SIAlertViewHandler)(SIAlertView *alertView);
 
 @property (nonatomic, copy) NSString *title;
 @property (nonatomic, copy) NSString *message;
+@property (nonatomic, retain) NSArray *segmentedControlTitles;
+@property (nonatomic, assign) NSUInteger initiallySegmentedControlSelectedIndex;
+@property (nonatomic, assign, getter = isWaiting) BOOL waiting;
 
 @property (nonatomic, assign) SIAlertViewTransitionStyle transitionStyle; // default is SIAlertViewTransitionStyleSlideFromBottom
 @property (nonatomic, assign) SIAlertViewBackgroundStyle backgroundStyle; // default is SIAlertViewBackgroundStyleGradient
@@ -69,6 +72,8 @@ typedef void(^SIAlertViewHandler)(SIAlertView *alertView);
 @property (nonatomic, strong) UIColor *destructiveButtonColor NS_AVAILABLE_IOS(5_0) UI_APPEARANCE_SELECTOR;
 @property (nonatomic, assign) CGFloat cornerRadius NS_AVAILABLE_IOS(5_0) UI_APPEARANCE_SELECTOR; // default is 2.0
 @property (nonatomic, assign) CGFloat shadowRadius NS_AVAILABLE_IOS(5_0) UI_APPEARANCE_SELECTOR; // default is 8.0
+@property (nonatomic) NSInteger shouldShowBackground NS_AVAILABLE_IOS(5_0) UI_APPEARANCE_SELECTOR; // default is YES
+
 
 - (void)setDefaultButtonImage:(UIImage *)defaultButtonImage forState:(UIControlState)state NS_AVAILABLE_IOS(5_0) UI_APPEARANCE_SELECTOR;
 - (void)setCancelButtonImage:(UIImage *)cancelButtonImage forState:(UIControlState)state NS_AVAILABLE_IOS(5_0) UI_APPEARANCE_SELECTOR;
@@ -77,7 +82,10 @@ typedef void(^SIAlertViewHandler)(SIAlertView *alertView);
 - (id)initWithTitle:(NSString *)title andMessage:(NSString *)message;
 - (void)addButtonWithTitle:(NSString *)title type:(SIAlertViewButtonType)type handler:(SIAlertViewHandler)handler;
 
+- (NSString *)selectedSegmentTitle;
+
 - (void)show;
+- (void)showInView:(UIView *)view;
 - (void)dismissAnimated:(BOOL)animated;
 
 @end

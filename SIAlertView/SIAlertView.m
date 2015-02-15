@@ -51,8 +51,12 @@ static SIAlertView *__si_alert_current_view;
 @property (nonatomic, strong) UILabel *messageLabel;
 @property (nonatomic, strong) UIView *containerView;
 @property (nonatomic, strong) NSMutableArray *buttons;
+@property (nonatomic, strong) UIActivityIndicatorView *activityIndicatorView;
+@property (nonatomic, strong) UISegmentedControl *segmentedControl;
 
 @property (nonatomic, assign, getter = isLayoutDirty) BOOL layoutDirty;
+
+@property (nonatomic, assign, getter = isShownInView) BOOL shownInView;
 
 + (NSMutableArray *)sharedQueue;
 + (SIAlertView *)currentAlertView;
@@ -247,6 +251,7 @@ static SIAlertView *__si_alert_current_view;
     appearance.destructiveButtonColor = [UIColor whiteColor];
     appearance.cornerRadius = 2;
     appearance.shadowRadius = 8;
+  appearance.shouldShowBackground = (NSInteger)YES;
 }
 
 - (id)init
@@ -359,6 +364,12 @@ static SIAlertView *__si_alert_current_view;
 	[self.items addObject:item];
 }
 
+- (NSString *)selectedSegmentTitle
+{
+  NSUInteger selectedIndex = self.segmentedControl.selectedSegmentIndex;
+  return [self.segmentedControl titleForSegmentAtIndex:selectedIndex];
+}
+
 - (void)show
 {
     if (self.isVisible) {
@@ -397,9 +408,11 @@ static SIAlertView *__si_alert_current_view;
     [SIAlertView setAnimating:YES];
     [SIAlertView setCurrentAlertView:self];
     
-    // transition background
+  // transition background
+  if (self.shouldShowBackground) {
     [SIAlertView showBackground];
-    
+  }
+  
     SIAlertViewController *viewController = [[SIAlertViewController alloc] initWithNibName:nil bundle:nil];
     viewController.alertView = self;
     
@@ -433,6 +446,79 @@ static SIAlertView *__si_alert_current_view;
     }];
 }
 
+- (void)showInView:(UIView *)view
+{
+  self.shownInView = YES;
+  
+  if (![[SIAlertView sharedQueue] containsObject:self]) {
+    [[SIAlertView sharedQueue] addObject:self];
+  }
+  
+  if ([SIAlertView isAnimating]) {
+    return; // wait for next turn
+  }
+  
+  if (self.isVisible) {
+    return;
+  }
+  
+  if ([SIAlertView currentAlertView].isVisible) {
+    SIAlertView *alert = [SIAlertView currentAlertView];
+    [alert dismissAnimated:YES cleanup:NO];
+    return;
+  }
+  
+  if (self.willShowHandler) {
+    self.willShowHandler(self);
+  }
+  NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
+  [nc postNotificationName:SIAlertViewWillShowNotification
+                    object:self
+                  userInfo:nil];
+  
+  self.visible = YES;
+  
+  [SIAlertView setAnimating:YES];
+  [SIAlertView setCurrentAlertView:self];
+  
+  [self setup];
+  
+  self.frame = view.bounds;
+
+  [self validateLayout];
+  
+  [view addSubview:self];
+
+
+  [self transitionInCompletion:^{
+    if (self.didShowHandler) {
+      self.didShowHandler(self);
+    }
+    [nc postNotificationName:SIAlertViewDidShowNotification
+                      object:self
+                    userInfo:nil];
+    
+    [SIAlertView setAnimating:NO];
+    
+    NSInteger index = [[SIAlertView sharedQueue] indexOfObject:self];
+    if (index < [SIAlertView sharedQueue].count - 1) {
+      [self dismissAnimated:YES cleanup:NO]; // dismiss to show next alert view
+    }
+  }];
+}
+
+- (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event
+{
+  if (self.shownInView)
+  {
+    return CGRectContainsPoint(self.containerView.frame, point);
+  }
+  else
+  {
+    return [super pointInside:point withEvent:event];
+  }
+}
+
 - (void)dismissAnimated:(BOOL)animated
 {
     [self dismissAnimated:animated cleanup:YES];
@@ -454,7 +540,9 @@ static SIAlertView *__si_alert_current_view;
     
     void (^dismissComplete)(void) = ^{
         self.visible = NO;
-        
+
+        UIView *superview = self.superview;
+
         [self teardown];
         
         [SIAlertView setCurrentAlertView:nil];
@@ -484,12 +572,20 @@ static SIAlertView *__si_alert_current_view;
         }
         
         if (nextAlertView) {
-            [nextAlertView show];
+            if (self.shownInView) {
+              [nextAlertView showInView:superview];
+            } else {
+              [nextAlertView show];
+            }
         } else {
             // show last alert view
             if ([SIAlertView sharedQueue].count > 0) {
                 SIAlertView *alert = [[SIAlertView sharedQueue] lastObject];
-                [alert show];
+                if (self.shownInView) {
+                  [alert showInView:superview];
+                } else {
+                  [alert show];
+                }
             }
         }
     };
@@ -497,11 +593,13 @@ static SIAlertView *__si_alert_current_view;
     if (animated && isVisible) {
         [SIAlertView setAnimating:YES];
         [self transitionOutCompletion:dismissComplete];
-        
-        if ([SIAlertView sharedQueue].count == 1) {
-            [SIAlertView hideBackgroundAnimated:YES];
+
+        if (self.shouldShowBackground) {
+          if ([SIAlertView sharedQueue].count == 1) {
+              [SIAlertView hideBackgroundAnimated:YES];
+          }
         }
-        
+
     } else {
         dismissComplete();
         
@@ -509,18 +607,20 @@ static SIAlertView *__si_alert_current_view;
             [SIAlertView hideBackgroundAnimated:YES];
         }
     }
-    
-    UIWindow *window = self.oldKeyWindow;
+
+    if (!self.shownInView) {
+      UIWindow *window = self.oldKeyWindow;
 #ifdef __IPHONE_7_0
-    if ([window respondsToSelector:@selector(setTintAdjustmentMode:)]) {
-        window.tintAdjustmentMode = self.oldTintAdjustmentMode;
-    }
+      if ([window respondsToSelector:@selector(setTintAdjustmentMode:)]) {
+          window.tintAdjustmentMode = self.oldTintAdjustmentMode;
+      }
 #endif
-    if (!window) {
-        window = [UIApplication sharedApplication].windows[0];
+      if (!window) {
+          window = [UIApplication sharedApplication].windows[0];
+      }
+      [window makeKeyWindow];
+      window.hidden = NO;
     }
-    [window makeKeyWindow];
-    window.hidden = NO;
 }
 
 #pragma mark - Transitions
@@ -734,17 +834,54 @@ static SIAlertView *__si_alert_current_view;
 	if (self.titleLabel) {
         self.titleLabel.text = self.title;
         CGFloat height = [self heightForTitleLabel];
-        self.titleLabel.frame = CGRectMake(CONTENT_PADDING_LEFT, y, self.containerView.bounds.size.width - CONTENT_PADDING_LEFT * 2, height);
+        CGRect frame = CGRectMake(
+                                  CONTENT_PADDING_LEFT,
+                                  y,
+                                  self.containerView.bounds.size.width - CONTENT_PADDING_LEFT * 2,
+                                  height
+                                  );
+
+        if (self.waiting) {
+          frame.size.width -= CONTENT_PADDING_LEFT + self.activityIndicatorView.frame.size.width;
+        }
+
+        self.titleLabel.frame = frame;
         y += height;
-	}
+    }
+    if (self.activityIndicatorView) {
+      CGRect frame = self.activityIndicatorView.frame;
+      frame.origin.x = self.containerView.bounds.size.width - CONTENT_PADDING_LEFT - frame.size.width;
+      frame.origin.y = (self.containerView.bounds.size.height - frame.size.height) / 2.f;
+      self.activityIndicatorView.frame = frame;
+    }
     if (self.messageLabel) {
         if (y > CONTENT_PADDING_TOP) {
             y += GAP;
         }
         self.messageLabel.text = self.message;
         CGFloat height = [self heightForMessageLabel];
-        self.messageLabel.frame = CGRectMake(CONTENT_PADDING_LEFT, y, self.containerView.bounds.size.width - CONTENT_PADDING_LEFT * 2, height);
+        CGRect frame =
+        CGRectMake(
+                   CONTENT_PADDING_LEFT,
+                   y,
+                   self.containerView.bounds.size.width - CONTENT_PADDING_LEFT * 2,
+                   height
+                   );
+        if (self.waiting) {
+          frame.size.width -= CONTENT_PADDING_LEFT + self.activityIndicatorView.frame.size.width;
+        }
+        self.messageLabel.frame = frame;
         y += height;
+    }
+    if (self.segmentedControl) {
+      if (y > CONTENT_PADDING_TOP) {
+        y += GAP;
+      }
+      CGRect frame = self.segmentedControl.frame;
+      frame.origin.x = (self.containerView.bounds.size.width - frame.size.width) / 2.f;
+      frame.origin.y = y;
+      self.segmentedControl.frame = frame;
+      y += frame.size.height;
     }
     if (self.items.count > 0) {
         if (y > CONTENT_PADDING_TOP) {
@@ -784,6 +921,12 @@ static SIAlertView *__si_alert_current_view;
             height += GAP;
         }
         height += [self heightForMessageLabel];
+    }
+    if (self.segmentedControlTitles) {
+      if (height > CONTENT_PADDING_TOP) {
+        height += GAP;
+      }
+      height += self.segmentedControl.frame.size.height;
     }
     if (self.items.count > 0) {
         if (height > CONTENT_PADDING_TOP) {
@@ -874,22 +1017,30 @@ static SIAlertView *__si_alert_current_view;
 
 - (void)setup
 {
-    [self setupContainerView];
-    [self updateTitleLabel];
-    [self updateMessageLabel];
-    [self setupButtons];
-    [self invalidateLayout];
+  [self setupContainerView];
+  [self updateActivityIndicator];
+  [self updateSegmentedControl];
+  [self updateTitleLabel];
+  [self updateMessageLabel];
+  [self setupButtons];
+  [self invalidateLayout];
 }
 
 - (void)teardown
 {
     [self.containerView removeFromSuperview];
     self.containerView = nil;
+    self.activityIndicatorView = nil;
+    self.segmentedControl = nil;
     self.titleLabel = nil;
     self.messageLabel = nil;
     [self.buttons removeAllObjects];
-    [self.alertWindow removeFromSuperview];
-    self.alertWindow = nil;
+    if (self.shownInView) {
+      [self removeFromSuperview];
+    } else {
+      [self.alertWindow removeFromSuperview];
+      self.alertWindow = nil;
+    }
     self.layoutDirty = NO;
 }
 
@@ -902,6 +1053,48 @@ static SIAlertView *__si_alert_current_view;
     self.containerView.layer.shadowRadius = self.shadowRadius;
     self.containerView.layer.shadowOpacity = 0.5;
     [self addSubview:self.containerView];
+}
+
+- (void)updateActivityIndicator
+{
+  if (self.waiting) {
+    if (!self.activityIndicatorView) {
+      self.activityIndicatorView =
+      [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhiteLarge];
+      [self.activityIndicatorView startAnimating];
+      [self.containerView addSubview:self.activityIndicatorView];
+    }
+  } else {
+    [self.activityIndicatorView removeFromSuperview];
+    self.activityIndicatorView = nil;
+  }
+  [self invalidateLayout];
+}
+
+- (void)updateSegmentedControl
+{
+  if (self.segmentedControlTitles.count > 0) {
+    if (!self.segmentedControl) {
+      self.segmentedControl =
+      [[UISegmentedControl alloc] initWithItems:self.segmentedControlTitles];
+      [self.segmentedControl setSelectedSegmentIndex:self.initiallySegmentedControlSelectedIndex];
+
+      // Make sure the segments have some minimum width
+      NSUInteger index = 0;
+      for (NSString *title in self.segmentedControlTitles) {
+        if (title.length < 2) {
+          [self.segmentedControl setWidth:30.f forSegmentAtIndex:index];
+        }
+        index++;
+      }
+      
+      [self.containerView addSubview:self.segmentedControl];
+    }
+  } else {
+    [self.segmentedControl removeFromSuperview];
+    self.segmentedControl = nil;
+  }
+  [self invalidateLayout];
 }
 
 - (void)updateTitleLabel
