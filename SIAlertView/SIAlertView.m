@@ -10,6 +10,8 @@
 #import "UIWindow+SIUtils.h"
 #import <QuartzCore/QuartzCore.h>
 
+#import "UIImage_Tint.h"
+
 NSString *const SIAlertViewWillShowNotification = @"SIAlertViewWillShowNotification";
 NSString *const SIAlertViewDidShowNotification = @"SIAlertViewDidShowNotification";
 NSString *const SIAlertViewWillDismissNotification = @"SIAlertViewWillDismissNotification";
@@ -1182,12 +1184,18 @@ static SIAlertView *__si_alert_current_view;
             [button setTitleColor:[self.destructiveButtonColor colorWithAlphaComponent:0.8] forState:UIControlStateHighlighted];
 			break;
 		case SIAlertViewButtonTypeDefault:
-		default:
-			normalImage = [UIImage imageNamed:@"SIAlertView.bundle/button-default"];
-			highlightedImage = [UIImage imageNamed:@"SIAlertView.bundle/button-default-d"];
-			[button setTitleColor:self.buttonColor forState:UIControlStateNormal];
-            [button setTitleColor:[self.buttonColor colorWithAlphaComponent:0.8] forState:UIControlStateHighlighted];
+    default: {
+//			normalImage = [UIImage imageNamed:@"SIAlertView.bundle/button-default"];
+//			highlightedImage = [UIImage imageNamed:@"SIAlertView.bundle/button-default-d"];
+//			[button setTitleColor:self.buttonColor forState:UIControlStateNormal];
+//      [button setTitleColor:[self.buttonColor colorWithAlphaComponent:0.8] forState:UIControlStateHighlighted];
+      UIColor *tintColor = [[SIAlertView appearance] tintColor];
+      normalImage = [[UIImage imageNamed:@"SimpleButton"] imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+      normalImage =
+      [normalImage imageTintedWithColor:tintColor];
+      [button setTitleColor:tintColor forState:UIControlStateNormal];
 			break;
+    }
 	}
 	CGFloat hInset = floorf(normalImage.size.width / 2);
 	CGFloat vInset = floorf(normalImage.size.height / 2);
