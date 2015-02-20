@@ -81,6 +81,7 @@
 		7E23C6A9173277EE00784CF1 /* Icon-72@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Icon-72@2x.png"; sourceTree = "<group>"; };
 		7EEECA67182350B1001FEDF5 /* UIWindow+SIUtils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "UIWindow+SIUtils.h"; sourceTree = "<group>"; };
 		7EEECA68182350B1001FEDF5 /* UIWindow+SIUtils.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "UIWindow+SIUtils.m"; sourceTree = "<group>"; };
+		9D2F3BA51A9096690047ED24 /* SIAlertView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = SIAlertView.m; path = ../../../Desktop/SIAlertView.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -124,6 +125,7 @@
 				7E23C67817325EAA00784CF1 /* SIAlertViewExample */,
 				7E23C67117325EAA00784CF1 /* Frameworks */,
 				7E23C67017325EAA00784CF1 /* Products */,
+				9D2F3BA51A9096690047ED24 /* SIAlertView.m */,
 			);
 			sourceTree = "<group>";
 		};
